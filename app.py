@@ -48,7 +48,8 @@ def plot_prices(df, y_test, y_predicted):
 # Streamlit app
 def main():
     st.title('Stock Trend Prediction')
-    st.subheader('EXAMPLE :-SBIN.NS , RELIANCE.NS , TCS.NS , APPL , MSFT')
+    st.subheader('Use Ticker symbol like belowe are some examples')
+    st.subheader('SBIN.NS , RELIANCE.NS , TCS.NS , APPL , MSFT')
     user_input = st.text_input('Enter Stock Ticker',)
     if user_input:
         years = st.slider('Select number of years:', 1, 10, 1)  # Slider for selecting number of years

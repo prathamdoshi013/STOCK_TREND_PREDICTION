@@ -9,6 +9,15 @@ import streamlit as st
 from datetime import datetime, timedelta
 import threading
 
+# Check if GPU is available
+physical_devices = tf.config.list_physical_devices('GPU')
+if physical_devices:
+    device = "/GPU:0"
+    print("Running on GPU")
+else:
+    device = "/CPU:0"
+    print("Running on CPU")
+
 # Function to get start date based on user input for number of years
 def get_start_date(years):
     current_date = datetime.now()

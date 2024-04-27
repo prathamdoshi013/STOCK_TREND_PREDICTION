@@ -47,7 +47,7 @@ streamlit run app.py
 ## File Description
 
 - `app.py`: Streamlit app for user interaction and displaying visualizations.
-- `main.py`: Main file containing functions for downloading data, training the LSTM model, and predicting future prices.
+- `stock_prediction.ipynb`: This file containing functions for downloading data, training the LSTM model, and predicting future prices.
 - `keras_model.h5`: Pre-trained LSTM model saved in h5 format.
 - `README.md`: This file providing information about the project.
 - `requirement.txt` : This file will contain neccesary libraries to be installed

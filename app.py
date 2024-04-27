@@ -2,12 +2,12 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 from tensorflow import keras
-from keras.models import load_model # type: ignore
+from keras.models import load_model
 import streamlit as st
 from datetime import datetime, timedelta
+import threading
 
 # Function to get start date based on user input for number of years
 def get_start_date(years):
@@ -16,12 +16,13 @@ def get_start_date(years):
     return start_date.strftime("%Y-%m-%d")
 
 # Function to download historical data from Yahoo Finance
+@st.cache_data
 def download_data(ticker, start_date, end_date):
     df = yf.download(ticker, start=start_date, end=end_date)
     return df
 
 # Function to predict future prices
-def predict_future_prices(model, X_test, scaler, days):
+def predict_future_prices(scaler, model, X_test, days):
     future_prices = []
     current_data = X_test[-1]  # Get the most recent data
     for _ in range(days):
@@ -34,7 +35,6 @@ def predict_future_prices(model, X_test, scaler, days):
     future_prices = future_prices * scaler.scale_ + scaler.min_
     return future_prices
 
-
 # Function to plot original vs predicted prices
 def plot_prices(df, y_test, y_predicted):
     fig = plt.figure(figsize=(12,6))
@@ -45,54 +45,72 @@ def plot_prices(df, y_test, y_predicted):
     plt.legend()
     return fig
 
-# Streamlit app
+# Streamlit app with Session State
 def main():
+    # Initialize session state
+    if 'user_input' not in st.session_state:
+        st.session_state.user_input = {
+            'ticker': None,
+            'years': None
+        }
+        
+    # Initialize mutex lock
+    if 'lock' not in st.session_state:
+        st.session_state.lock = threading.Lock()
+
+    # Display app title
     st.title('Stock Trend Prediction')
-    st.subheader('EXAMPLE :-SBIN.NS , RELIANCE.NS , TCS.NS , APPL , MSFT')
-    user_input = st.text_input('Enter Stock Ticker',)
-    if user_input:
-        years = st.slider('Select number of years:', 1, 10, 1)  # Slider for selecting number of years
-        start_date = get_start_date(years)
-        end_date = datetime.now().strftime("%Y-%m-%d")
 
-        df = download_data(user_input, start_date, end_date)
+    # Display input fields only if ticker is not selected yet
+    if st.session_state.user_input['ticker'] is None:
+        st.subheader('EXAMPLE: SBIN.NS, RELIANCE.NS, TCS.NS, APPL, MSFT')
+        st.session_state.user_input['ticker'] = st.text_input('Enter Stock Ticker')
 
-        st.subheader(f'Data from {start_date} to {end_date}')
-        st.write(df.describe())
+    # Process user input
+    if st.session_state.user_input['ticker']:
+        st.session_state.user_input['years'] = st.slider('Select number of years:', 1, 10, 1)
 
-        st.subheader('Closing price vs Time chart')
-        fig1 = plt.figure(figsize=(12,6))
-        plt.plot(df.index, df.Close,'b')
-        st.pyplot(fig1)
+        # Perform prediction if all inputs are provided
+        if st.session_state.user_input['years']:
+            with st.session_state.lock:
+                start_date = get_start_date(st.session_state.user_input['years'])
+                end_date = datetime.now().strftime("%Y-%m-%d")
+                df = download_data(st.session_state.user_input['ticker'], start_date, end_date)
 
-          # Use the entire data for training
-        data_training = pd.DataFrame(df['Close'])
+                st.subheader(f'Data from {start_date} to {end_date}')
+                st.write(df.describe())
 
-        # Scale the data
-        scaler = MinMaxScaler(feature_range=(0,1))
-        data_training_array = scaler.fit_transform(data_training)
+                st.subheader('Closing price vs Time chart')
+                fig1 = plt.figure(figsize=(12,6))
+                plt.plot(df.index, df.Close,'b')
+                st.pyplot(fig1)
 
-        # Prepare the data for the LSTM model
-        X = []
-        y = []
+                # Use the entire data for training
+                data_training = pd.DataFrame(df['Close'])
 
-        for i in range(100, data_training_array.shape[0]):
-            X.append(data_training_array[i-100: i])
-            y.append(data_training_array[i,0])
-        X , y = np.array(X), np.array(y)
+                # Scale the data
+                scaler = MinMaxScaler(feature_range=(0,1))
+                data_training_array = scaler.fit_transform(data_training)
 
-        # Load the model and predict the prices
-        model = load_model('keras_model.h5')
-        y_predicted = model.predict(X)
+                # Prepare the data for the LSTM model
+                X = []
+                y = []
+                for i in range(100, data_training_array.shape[0]):
+                    X.append(data_training_array[i-100: i])
+                    y.append(data_training_array[i,0])
+                X , y = np.array(X), np.array(y)
 
-        # Reverse the scaling
-        y_predicted = scaler.inverse_transform(y_predicted)
-        y = scaler.inverse_transform(y.reshape(-1, 1))
+                # Load the model and predict the prices
+                model = load_model('keras_model.h5')
+                y_predicted = model.predict(X)
 
-        # Plot the original vs predicted prices
-        st.subheader('Original vs predicted price')
-        fig2 = plot_prices(df, y, y_predicted)
-        st.pyplot(fig2)
+                # Reverse the scaling
+                y_predicted = scaler.inverse_transform(y_predicted)
+
+                # Plot the original vs predicted prices
+                st.subheader('Original vs predicted price')
+                fig2 = plot_prices(df, df['Close'].values, y_predicted.flatten())
+                st.pyplot(fig2)
+
 if __name__ == '__main__':
     main()
-
